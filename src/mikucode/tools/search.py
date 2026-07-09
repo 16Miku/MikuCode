@@ -8,11 +8,33 @@ from mikucode.tools.registry import ToolRegistry
 _IGNORED_DIRS = {".git", ".venv", "node_modules", "dist", "build", "__pycache__", ".pytest_cache"}
 
 
+def _extract_search_query(arguments: dict[str, Any]) -> str | None:
+    """Accept common argument aliases models invent for search tools."""
+    for key in ("query", "pattern", "text", "q", "search", "keyword", "needle"):
+        value = arguments.get(key)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return None
+
+
 def register_search_tools(registry: ToolRegistry, project_root: Path) -> None:
     root = project_root.resolve()
 
     def search_text(arguments: dict[str, Any]) -> ToolResult:
-        query = str(arguments["query"])
+        query = _extract_search_query(arguments)
+        if not query:
+            return ToolResult(
+                ok=False,
+                tool="search_text",
+                summary=(
+                    "Missing required argument 'query' "
+                    "(also accepted: pattern, text, q, search, keyword)."
+                ),
+                metadata={"arguments": arguments},
+            )
         max_results = int(arguments.get("max_results", 50))
         matches: list[str] = []
         for item in root.rglob("*"):

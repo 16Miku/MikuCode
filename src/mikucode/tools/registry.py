@@ -24,4 +24,13 @@ class ToolRegistry:
     def execute(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         if name not in self._executors:
             return ToolResult(ok=False, tool=name, summary=f"Unknown tool: {name}")
-        return self._executors[name](arguments)
+        try:
+            return self._executors[name](arguments or {})
+        except Exception as exc:
+            # Tools must fail soft so agent loop / REPL never crash on model typos.
+            return ToolResult(
+                ok=False,
+                tool=name,
+                summary=f"Tool raised {type(exc).__name__}: {exc}",
+                metadata={"arguments": arguments or {}},
+            )

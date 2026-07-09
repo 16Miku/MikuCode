@@ -140,3 +140,27 @@ def test_registry_unknown_tool_returns_failure():
     assert result.ok is False
     assert result.tool == "nope"
     assert "Unknown tool" in result.summary
+
+
+def test_search_text_accepts_pattern_alias(tmp_path: Path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "risk.py").write_text(
+        "def classify_command(command: str):\n    pass\n", encoding="utf-8"
+    )
+    registry = ToolRegistry()
+    register_search_tools(registry, tmp_path)
+
+    result = registry.execute("search_text", {"pattern": "classify_command"})
+
+    assert result.ok is True
+    assert "src/risk.py:1" in result.content
+
+
+def test_search_text_missing_query_returns_failure(tmp_path: Path):
+    registry = ToolRegistry()
+    register_search_tools(registry, tmp_path)
+
+    result = registry.execute("search_text", {})
+
+    assert result.ok is False
+    assert "query" in result.summary.lower()
