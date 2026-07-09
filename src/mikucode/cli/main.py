@@ -4,11 +4,13 @@ from typing import List
 import typer
 from rich.console import Console
 
+from mikucode.benchmark.smoke import run_smoke_benchmark
 from mikucode.cli.factory import build_provider, build_registry
 from mikucode.cli.repl import MikuRepl
 from mikucode.config import ensure_miku_dir
 from mikucode.editing.undo import UndoManager
 from mikucode.runtime.agent import AgentRuntime
+from mikucode.tracing.replay import render_trace
 
 app = typer.Typer(help="MikuCode local coding agent runtime")
 console = Console()
@@ -28,6 +30,28 @@ def _dispatch_undo(project_root: Path) -> None:
     ensure_miku_dir(project_root)
     result = UndoManager(project_root).undo_last()
     console.print(result.summary)
+
+
+def _dispatch_trace(args: List[str]) -> None:
+    if not args or args[0] != "show":
+        console.print("Usage: miku trace show <path>")
+        raise typer.Exit(code=1)
+    if len(args) < 2:
+        console.print("Usage: miku trace show <path>")
+        raise typer.Exit(code=1)
+    path = Path(args[1])
+    if not path.exists():
+        console.print(f"[red]Trace file not found:[/red] {path}")
+        raise typer.Exit(code=1)
+    console.print(render_trace(path))
+
+
+def _dispatch_bench(args: List[str], project_root: Path) -> None:
+    if not args or args[0] != "smoke":
+        console.print("Usage: miku bench smoke")
+        raise typer.Exit(code=1)
+    result = run_smoke_benchmark(project_root)
+    console.print(result)
 
 
 def _dispatch_one_shot(project_root: Path, task: str) -> None:
@@ -58,7 +82,10 @@ def main(
 ) -> None:
     if not args:
         console.print("MikuCode local coding agent runtime")
-        console.print("Usage: miku init | miku chat | miku undo | miku <task>")
+        console.print(
+            "Usage: miku init | miku chat | miku undo | miku trace show <path> | "
+            "miku bench smoke | miku <task>"
+        )
         return
 
     command = args[0]
@@ -72,6 +99,14 @@ def main(
 
     if command == "undo":
         _dispatch_undo(project_root)
+        return
+
+    if command == "trace":
+        _dispatch_trace(args[1:])
+        return
+
+    if command == "bench":
+        _dispatch_bench(args[1:], project_root)
         return
 
     task = " ".join(args).strip()
