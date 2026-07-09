@@ -80,6 +80,24 @@ class AgentRuntime:
                 )
                 continue
 
+            if action.type == "patch_proposal":
+                from mikucode.editing.patch import PatchEngine
+
+                result = PatchEngine(self.project_root).apply_patches(action.patches)
+                state.record_observation(result)
+                if result.ok:
+                    for changed_file in result.metadata.get("changed_files", []):
+                        state.files_modified.add(changed_file)
+                    state.verification_state = "stale"
+                self.recorder.record(
+                    AgentEvent(
+                        type="patch_applied",
+                        step=state.step_count,
+                        payload=result.model_dump(),
+                    )
+                )
+                continue
+
             result = ToolResult(
                 ok=False,
                 tool="runtime",
