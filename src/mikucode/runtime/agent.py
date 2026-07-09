@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from mikucode.config import ensure_miku_dir
+from mikucode.context.builder import ContextBuilder
 from mikucode.models.base import ModelProvider
 from mikucode.runtime.actions import AgentAction, ToolResult
 from mikucode.runtime.events import AgentEvent
@@ -115,12 +116,7 @@ class AgentRuntime:
         return state
 
     def _build_messages(self, state: AgentState) -> list[dict]:
-        observations = [obs.model_dump() for obs in state.observations[-5:]]
-        return [
-            {"role": "system", "content": "Return exactly one JSON AgentAction."},
-            {"role": "user", "content": state.task},
-            {"role": "system", "content": json.dumps({"recent_observations": observations})},
-        ]
+        return ContextBuilder(self.project_root).build(state)
 
     def _parse_action(self, content: str) -> AgentAction:
         try:
