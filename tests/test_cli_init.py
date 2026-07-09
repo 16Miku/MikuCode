@@ -48,12 +48,12 @@ def test_chat_command_starts_and_exits(tmp_path: Path):
     assert "MikuCode" in result.stdout
 
 
-def test_one_shot_task_prints_placeholder_and_initializes_project(tmp_path: Path):
+def test_one_shot_task_initializes_project_without_provider_config(tmp_path: Path):
+    """Without MIKU_MOCK_RESPONSES or API key, runtime fails after .miku init."""
     runner = CliRunner()
 
     result = runner.invoke(app, ["--project-root", str(tmp_path), "explain this project"])
 
-    assert result.exit_code == 0
     assert (tmp_path / ".miku" / "sessions").is_dir()
-    assert "One-shot runtime is not connected yet" in result.stdout
-    assert "explain this project" in result.stdout
+    assert result.exit_code == 1
+    assert "API key" in result.stdout or "Runtime error" in result.stdout

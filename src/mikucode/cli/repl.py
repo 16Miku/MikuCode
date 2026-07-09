@@ -2,7 +2,10 @@ from pathlib import Path
 
 from rich.console import Console
 
+from mikucode.cli.factory import build_provider, build_registry
 from mikucode.config import load_config
+from mikucode.editing.undo import UndoManager
+from mikucode.runtime.agent import AgentRuntime
 
 
 class MikuRepl:
@@ -23,4 +26,22 @@ class MikuRepl:
                 return
             if not user_input:
                 continue
-            self.console.print("Runtime is not connected yet. This command will be handled in Task 8.")
+            if user_input == "/undo":
+                result = UndoManager(self.config.project_root).undo_last()
+                self.console.print(result.summary)
+                continue
+            try:
+                runtime = AgentRuntime(
+                    project_root=self.config.project_root,
+                    provider=build_provider(),
+                    registry=build_registry(self.config.project_root),
+                )
+                state = runtime.run(user_input)
+            except Exception as exc:
+                self.console.print(f"[red]Runtime error:[/red] {exc}")
+                continue
+            self.console.print(
+                "[green]Done.[/green]" if state.done else "[yellow]Stopped.[/yellow]"
+            )
+            for observation in state.observations[-3:]:
+                self.console.print(observation.summary)

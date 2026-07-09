@@ -60,6 +60,14 @@ class AgentRuntime:
 
             if action.type == "final_answer":
                 state.done = True
+                if action.summary:
+                    state.record_observation(
+                        ToolResult(
+                            ok=True,
+                            tool="final_answer",
+                            summary=action.summary,
+                        )
+                    )
                 self.recorder.record(
                     AgentEvent(
                         type="final_report",
