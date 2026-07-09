@@ -12,7 +12,12 @@ from mikucode.editing.undo import UndoManager
 from mikucode.runtime.agent import AgentRuntime
 from mikucode.tracing.replay import render_trace
 
-app = typer.Typer(help="MikuCode local coding agent runtime")
+app = typer.Typer(
+    help=(
+        "MikuCode local coding agent runtime. "
+        "Commands: init | chat | undo | trace show <path> | bench smoke | <task>."
+    )
+)
 console = Console()
 
 
@@ -77,9 +82,17 @@ def _dispatch_one_shot(project_root: Path, task: str) -> None:
 
 @app.command()
 def main(
-    args: List[str] = typer.Argument(None, help="Command or one-shot task for MikuCode"),
+    args: List[str] = typer.Argument(
+        None,
+        help=(
+            "Command or one-shot task. "
+            "Built-ins: init, chat, undo, trace show <path>, bench smoke; "
+            "anything else is a free-form one-shot task."
+        ),
+    ),
     project_root: Path = typer.Option(Path.cwd(), help="Project root"),
 ) -> None:
+    """MikuCode CLI: init, chat, undo, trace show, bench smoke, or free-form task."""
     if not args:
         console.print("MikuCode local coding agent runtime")
         console.print(
