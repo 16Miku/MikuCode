@@ -77,7 +77,10 @@ def _dispatch_one_shot(project_root: Path, task: str) -> None:
     else:
         console.print("[yellow]Stopped.[/yellow]")
     for observation in state.observations[-3:]:
-        console.print(observation.summary)
+        if observation.tool == "final_answer":
+            console.print(observation.summary)
+        else:
+            console.print(f"[dim]{observation.tool}:[/dim] {observation.summary}")
 
 
 @app.command()

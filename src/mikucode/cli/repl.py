@@ -44,4 +44,7 @@ class MikuRepl:
                 "[green]Done.[/green]" if state.done else "[yellow]Stopped.[/yellow]"
             )
             for observation in state.observations[-3:]:
-                self.console.print(observation.summary)
+                if observation.tool == "final_answer":
+                    self.console.print(observation.summary)
+                else:
+                    self.console.print(f"[dim]{observation.tool}:[/dim] {observation.summary}")

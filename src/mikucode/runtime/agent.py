@@ -127,8 +127,61 @@ class AgentRuntime:
         return ContextBuilder(self.project_root).build(state)
 
     def _parse_action(self, content: str) -> AgentAction:
+        """Parse model output into AgentAction with resilient fallbacks.
+
+        Models (especially free chat models) often return plain text or JSON
+        without a ``type`` field. For interactive usability we:
+        - strip optional markdown code fences
+        - accept valid AgentAction JSON as-is
+        - map missing-type JSON / plain text to ``final_answer``
+        """
+        raw = content if content is not None else ""
+        text = _strip_markdown_fence(raw.strip())
+        if not text:
+            return AgentAction(type="final_answer", summary="(empty model response)")
+
         try:
-            data = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Model returned invalid JSON: {content}") from exc
-        return AgentAction.model_validate(data)
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return AgentAction(type="final_answer", summary=raw.strip())
+
+        if not isinstance(data, dict):
+            return AgentAction(type="final_answer", summary=str(data))
+
+        if "type" not in data:
+            summary = _coerce_summary_from_dict(data)
+            return AgentAction(type="final_answer", summary=summary)
+
+        try:
+            return AgentAction.model_validate(data)
+        except Exception:
+            # Malformed action object: surface text rather than crashing the REPL.
+            summary = _coerce_summary_from_dict(data) or text[:2000]
+            return AgentAction(type="final_answer", summary=summary)
+
+
+def _strip_markdown_fence(text: str) -> str:
+    if not text.startswith("```"):
+        return text
+    lines = text.splitlines()
+    if not lines:
+        return text
+    # Drop opening ``` or ```json
+    lines = lines[1:]
+    if lines and lines[-1].strip().startswith("```"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def _coerce_summary_from_dict(data: dict) -> str:
+    for key in ("summary", "content", "message", "text", "answer", "reply"):
+        value = data.get(key)
+        if value is None:
+            continue
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return str(value)
+    return json.dumps(data, ensure_ascii=False)
+

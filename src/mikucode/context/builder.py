@@ -27,7 +27,17 @@ class ContextBuilder:
         return [
             {
                 "role": "system",
-                "content": "You are MikuCode. Return exactly one JSON AgentAction.",
+                "content": (
+                    "You are MikuCode, a coding agent runtime. "
+                    "Reply with exactly ONE JSON object (no markdown fences) matching AgentAction. "
+                    "Required field type is one of: "
+                    "tool_call, patch_proposal, plan_update, ask_user, final_answer. "
+                    "Examples: "
+                    '{"type":"final_answer","summary":"..."}; '
+                    '{"type":"tool_call","tool":"list_files","arguments":{},"reason":"..."}; '
+                    '{"type":"tool_call","tool":"read_file","arguments":{"path":"README.md"},"reason":"..."}. '
+                    "For pure chat/greetings use final_answer with your reply in summary."
+                ),
             },
             {"role": "user", "content": state.task},
             {"role": "system", "content": serialized},

@@ -92,3 +92,46 @@ def test_runtime_unsupported_action_type_continues(tmp_path: Path):
         obs.summary.startswith("Unsupported action type in this task:")
         for obs in state.observations
     )
+
+
+def test_runtime_accepts_plain_text_as_final_answer(tmp_path: Path):
+    registry = ToolRegistry()
+    register_filesystem_tools(registry, tmp_path)
+    provider = MockProvider(responses=["你好，我是助手。"])
+    runtime = AgentRuntime(
+        project_root=tmp_path, provider=provider, registry=registry, max_steps=3
+    )
+
+    state = runtime.run("你好")
+
+    assert state.done is True
+    assert any("你好" in obs.summary for obs in state.observations)
+
+
+def test_runtime_accepts_json_without_type_as_final_answer(tmp_path: Path):
+    registry = ToolRegistry()
+    register_filesystem_tools(registry, tmp_path)
+    provider = MockProvider(responses=['{"content":"ping ok"}'])
+    runtime = AgentRuntime(
+        project_root=tmp_path, provider=provider, registry=registry, max_steps=3
+    )
+
+    state = runtime.run("ping")
+
+    assert state.done is True
+    assert any("ping ok" in obs.summary for obs in state.observations)
+
+
+def test_runtime_strips_markdown_fence_around_action(tmp_path: Path):
+    registry = ToolRegistry()
+    register_filesystem_tools(registry, tmp_path)
+    fenced = '```json\n{"type":"final_answer","summary":"fenced ok"}\n```'
+    provider = MockProvider(responses=[fenced])
+    runtime = AgentRuntime(
+        project_root=tmp_path, provider=provider, registry=registry, max_steps=3
+    )
+
+    state = runtime.run("fence")
+
+    assert state.done is True
+    assert any(obs.summary == "fenced ok" for obs in state.observations)
