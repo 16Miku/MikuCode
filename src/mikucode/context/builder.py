@@ -35,7 +35,10 @@ class ContextBuilder:
                     "Examples: "
                     '{"type":"final_answer","summary":"..."}; '
                     '{"type":"tool_call","tool":"list_files","arguments":{},"reason":"..."}; '
-                    '{"type":"tool_call","tool":"read_file","arguments":{"path":"README.md"},"reason":"..."}. '
+                    '{"type":"tool_call","tool":"read_file","arguments":{"path":"README.md"},"reason":"..."}; '
+                    '{"type":"patch_proposal","patches":[{"kind":"search_replace","path":"file.py",'
+                    '"old_text":"a","new_text":"b"}],"reason":"..."}. '
+                    "Never flatten patch fields onto the top-level action; always use patches:[...]. "
                     "For pure chat/greetings use final_answer with your reply in summary."
                 ),
             },

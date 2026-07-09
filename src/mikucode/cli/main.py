@@ -5,17 +5,23 @@ import typer
 from rich.console import Console
 
 from mikucode.benchmark.smoke import run_smoke_benchmark
+from mikucode.cli.display import print_agent_result
 from mikucode.cli.factory import build_provider, build_registry
 from mikucode.cli.repl import MikuRepl
-from mikucode.config import ensure_miku_dir
+from mikucode.config import ensure_miku_dir, load_env_files
 from mikucode.editing.undo import UndoManager
 from mikucode.runtime.agent import AgentRuntime
 from mikucode.tracing.replay import render_trace
 
+# Load cwd/.env early so provider factory sees keys before any subcommand runs.
+load_env_files()
+
 app = typer.Typer(
     help=(
         "MikuCode local coding agent runtime. "
-        "Commands: init | chat | undo | trace show <path> | bench smoke | <task>."
+        "Commands: init | chat | undo | trace show <path> | bench smoke | <task>. "
+        "Config: environment variables or a project .env file "
+        "(MIKU_OPENAI_API_KEY, MIKU_OPENAI_BASE_URL, MIKU_MODEL)."
     )
 )
 console = Console()
@@ -72,15 +78,7 @@ def _dispatch_one_shot(project_root: Path, task: str) -> None:
         console.print(f"[red]Runtime error:[/red] {exc}")
         raise typer.Exit(code=1) from exc
 
-    if state.done:
-        console.print("[green]Done.[/green]")
-    else:
-        console.print("[yellow]Stopped.[/yellow]")
-    for observation in state.observations[-3:]:
-        if observation.tool == "final_answer":
-            console.print(observation.summary)
-        else:
-            console.print(f"[dim]{observation.tool}:[/dim] {observation.summary}")
+    print_agent_result(console, state)
 
 
 @app.command()
@@ -96,6 +94,9 @@ def main(
     project_root: Path = typer.Option(Path.cwd(), help="Project root"),
 ) -> None:
     """MikuCode CLI: init, chat, undo, trace show, bench smoke, or free-form task."""
+    # Reload from --project-root/.env without overriding already-set process env.
+    load_env_files(project_root)
+
     if not args:
         console.print("MikuCode local coding agent runtime")
         console.print(

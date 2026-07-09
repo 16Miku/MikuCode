@@ -48,8 +48,16 @@ def test_chat_command_starts_and_exits(tmp_path: Path):
     assert "MikuCode" in result.stdout
 
 
-def test_one_shot_task_initializes_project_without_provider_config(tmp_path: Path):
+def test_one_shot_task_initializes_project_without_provider_config(
+    tmp_path: Path, monkeypatch
+):
     """Without MIKU_MOCK_RESPONSES or API key, runtime fails after .miku init."""
+    # Do not inherit developer machine .env / shell keys into this unit test.
+    monkeypatch.setattr("mikucode.cli.main.load_env_files", lambda *args, **kwargs: [])
+    monkeypatch.delenv("MIKU_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("MIKU_MOCK_RESPONSES", raising=False)
+
     runner = CliRunner()
 
     result = runner.invoke(app, ["--project-root", str(tmp_path), "explain this project"])

@@ -4,6 +4,9 @@ __pycache__/
 .ruff_cache/
 .miku/
 bench-smoke-repo/
+.env
+.env.local
+demo_miku_edit.txt
 dist/
 build/
 *.egg-info/

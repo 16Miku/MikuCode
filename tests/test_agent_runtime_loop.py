@@ -135,3 +135,30 @@ def test_runtime_strips_markdown_fence_around_action(tmp_path: Path):
 
     assert state.done is True
     assert any(obs.summary == "fenced ok" for obs in state.observations)
+
+
+def test_runtime_normalizes_flattened_patch_proposal(tmp_path: Path):
+    target = tmp_path / "demo_miku_edit.txt"
+    target.write_text("# demo\nvalue = 1\n", encoding="utf-8")
+    registry = ToolRegistry()
+    register_filesystem_tools(registry, tmp_path)
+    # Model often flattens patch fields instead of using patches:[...]
+    flattened = (
+        '{"type":"patch_proposal","kind":"search_replace","path":"demo_miku_edit.txt",'
+        '"old_text":"value = 1","new_text":"value = 2","reason":"bump"}'
+    )
+    provider = MockProvider(
+        responses=[
+            flattened,
+            '{"type":"final_answer","summary":"patched ok"}',
+        ]
+    )
+    runtime = AgentRuntime(
+        project_root=tmp_path, provider=provider, registry=registry, max_steps=5
+    )
+
+    state = runtime.run("patch demo")
+
+    assert "value = 2" in target.read_text(encoding="utf-8")
+    assert state.done is True
+    assert any(obs.tool == "apply_patch" and obs.ok for obs in state.observations)

@@ -152,6 +152,8 @@ class AgentRuntime:
             summary = _coerce_summary_from_dict(data)
             return AgentAction(type="final_answer", summary=summary)
 
+        data = _normalize_action_dict(data)
+
         try:
             return AgentAction.model_validate(data)
         except Exception:
@@ -171,6 +173,74 @@ def _strip_markdown_fence(text: str) -> str:
     if lines and lines[-1].strip().startswith("```"):
         lines = lines[:-1]
     return "\n".join(lines).strip()
+
+
+def _normalize_action_dict(data: dict) -> dict:
+    """Fix common model mistakes before AgentAction validation.
+
+    Models often emit a flattened patch_proposal like::
+
+        {"type":"patch_proposal","kind":"search_replace","path":"...","old_text":"...","new_text":"..."}
+
+    while the protocol requires a non-empty ``patches`` list.
+    """
+    normalized = dict(data)
+    action_type = normalized.get("type")
+
+    if action_type == "patch_proposal":
+        patches = normalized.get("patches")
+        if not patches:
+            patch: dict = {}
+            for key in (
+                "kind",
+                "path",
+                "old_text",
+                "new_text",
+                "content",
+                "if_exists",
+            ):
+                if key in normalized and normalized[key] is not None:
+                    patch[key] = normalized[key]
+            if patch.get("kind") or patch.get("path"):
+                if "kind" not in patch and (
+                    "old_text" in patch or "new_text" in patch
+                ):
+                    patch["kind"] = "search_replace"
+                if "kind" not in patch and "content" in patch:
+                    patch["kind"] = "create_file"
+                normalized["patches"] = [patch]
+                # Drop flattened keys so they are not confused with action fields.
+                for key in list(patch.keys()):
+                    normalized.pop(key, None)
+
+    if action_type == "tool_call":
+        # Sometimes models put tool args at top level instead of arguments{}.
+        arguments = normalized.get("arguments")
+        if not arguments or not isinstance(arguments, dict) or arguments == {}:
+            known = {
+                "type",
+                "tool",
+                "arguments",
+                "reason",
+                "summary",
+                "patches",
+                "question",
+                "options",
+                "items",
+                "risk_level",
+                "changed_files",
+                "verification",
+                "remaining_risks",
+            }
+            lifted = {
+                key: value
+                for key, value in normalized.items()
+                if key not in known and value is not None
+            }
+            if lifted:
+                normalized["arguments"] = lifted
+
+    return normalized
 
 
 def _coerce_summary_from_dict(data: dict) -> str:

@@ -42,6 +42,27 @@ def test_search_replace_requires_unique_old_text(tmp_path: Path):
     assert target.read_text(encoding="utf-8") == "x = 1\nx = 1\n"
 
 
+def test_search_replace_matches_across_crlf(tmp_path: Path):
+    target = tmp_path / "demo.txt"
+    # Simulate Windows-style bytes on disk.
+    target.write_bytes(b"value = 1\r\n")
+    engine = PatchEngine(tmp_path)
+
+    result = engine.apply_patches(
+        [
+            {
+                "kind": "search_replace",
+                "path": "demo.txt",
+                "old_text": "value = 1",
+                "new_text": "value = 2",
+            }
+        ]
+    )
+
+    assert result.ok is True
+    assert "value = 2" in target.read_text(encoding="utf-8")
+
+
 def test_create_file_fails_if_file_exists(tmp_path: Path):
     (tmp_path / "notes.md").write_text("existing", encoding="utf-8")
     engine = PatchEngine(tmp_path)

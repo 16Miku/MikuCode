@@ -1,7 +1,7 @@
 [project]
 name = "mikucode"
 version = "0.1.0"
-description = "Local coding agent runtime inspired by Claude Code/Codex"
+description = "本地编程智能体运行时（MikuCode），模型决策、运行时执行"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -9,6 +9,7 @@ dependencies = [
   "rich>=13.7.0",
   "pydantic>=2.7.0",
   "httpx>=0.27.0",
+  "python-dotenv>=1.2.2",
 ]
 
 [project.scripts]

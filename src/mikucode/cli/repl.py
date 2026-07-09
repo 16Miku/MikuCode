@@ -2,6 +2,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from mikucode.cli.display import print_agent_result
 from mikucode.cli.factory import build_provider, build_registry
 from mikucode.config import load_config
 from mikucode.editing.undo import UndoManager
@@ -40,11 +41,4 @@ class MikuRepl:
             except Exception as exc:
                 self.console.print(f"[red]Runtime error:[/red] {exc}")
                 continue
-            self.console.print(
-                "[green]Done.[/green]" if state.done else "[yellow]Stopped.[/yellow]"
-            )
-            for observation in state.observations[-3:]:
-                if observation.tool == "final_answer":
-                    self.console.print(observation.summary)
-                else:
-                    self.console.print(f"[dim]{observation.tool}:[/dim] {observation.summary}")
+            print_agent_result(self.console, state)

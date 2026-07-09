@@ -8,6 +8,10 @@ from mikucode.permissions.policy import PathPolicy
 from mikucode.runtime.actions import ToolResult
 
 
+def _normalize_newlines(text: str) -> str:
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
 class PatchEngine:
     def __init__(self, project_root: Path) -> None:
         self.project_root = project_root.resolve()
@@ -45,11 +49,12 @@ class PatchEngine:
 
     def _apply_search_replace(self, patch: dict[str, Any]) -> ToolResult:
         path = str(patch["path"])
-        old_text = str(patch["old_text"])
-        new_text = str(patch["new_text"])
+        # Normalize newlines so Windows CRLF files match model-provided LF snippets.
+        old_text = _normalize_newlines(str(patch["old_text"]))
+        new_text = _normalize_newlines(str(patch["new_text"]))
         try:
             resolved = self.path_policy.ensure_inside_project(path)
-            before = resolved.read_text(encoding="utf-8")
+            before = _normalize_newlines(resolved.read_text(encoding="utf-8"))
         except Exception as exc:
             return ToolResult(
                 ok=False,
@@ -59,15 +64,20 @@ class PatchEngine:
             )
         count = before.count(old_text)
         if count != 1:
+            preview = before if len(before) <= 240 else before[:240] + "…"
             return ToolResult(
                 ok=False,
                 tool="apply_patch",
-                summary=f"old_text must match exactly once; got {count}",
-                metadata={"path": path},
+                summary=(
+                    f"old_text must match exactly once; got {count}. "
+                    f"old_text={old_text!r} file_preview={preview!r}"
+                ),
+                metadata={"path": path, "match_count": count},
             )
         after = before.replace(old_text, new_text, 1)
         create_backup(self.project_root, path)
-        resolved.write_text(after, encoding="utf-8")
+        # Write with explicit newlines for stable cross-platform content.
+        resolved.write_text(after, encoding="utf-8", newline="\n")
         diff = unified_diff(path, before, after)
         patches_dir = self.project_root / ".miku" / "patches"
         patches_dir.mkdir(parents=True, exist_ok=True)

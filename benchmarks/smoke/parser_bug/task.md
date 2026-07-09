@@ -1,8 +1,8 @@
-# Task: Fix parser whitespace handling
+# 任务：修复 parser 的空白处理
 
-Fix the parser so it strips surrounding whitespace before returning the parsed value.
+修改 parser，使其在返回解析结果前去掉首尾空白。
 
-## Acceptance
+## 验收
 
-- `parse_value("  miku  ")` returns `"miku"`.
-- Existing non-whitespace behavior remains unchanged.
+- `parse_value("  miku  ")` 返回 `"miku"`
+- 非空白相关行为保持不变

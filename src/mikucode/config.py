@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 @dataclass(frozen=True)
 class MikuConfig:
@@ -8,6 +10,26 @@ class MikuConfig:
     miku_dir: Path
     permission_mode: str = "auto-safe"
     default_test_command: str = "uv run pytest"
+
+
+def load_env_files(project_root: Path | None = None) -> list[Path]:
+    """Load ``.env`` from cwd and optional project root.
+
+    Existing process environment variables always win (``override=False``),
+    so shell ``$env:...`` can still override file values for one-off runs.
+    """
+    loaded: list[Path] = []
+    candidates: list[Path] = [Path.cwd() / ".env"]
+    if project_root is not None:
+        root_env = project_root.resolve() / ".env"
+        if root_env not in {p.resolve() for p in candidates}:
+            candidates.append(root_env)
+
+    for path in candidates:
+        if path.is_file():
+            load_dotenv(path, override=False)
+            loaded.append(path.resolve())
+    return loaded
 
 
 def ensure_miku_dir(project_root: Path) -> Path:
