@@ -19,7 +19,168 @@ MikuCode 是一个基于 Python 的**本地编程智能体运行时**，设计�
 - **冒烟基准**：确定性端到端 harness（`miku bench smoke`）
 - **`.env` 配置**：无需每次手动设置 PowerShell 环境变量
 
+## 系统架构
+
+原则一句话：**模型提议意图，运行时门控执行**（校验 → 授权 → 执行 → 记录 → 可回滚 / 可验证）。
+
+下列图为 **Mermaid 源码图**（GitHub / 多数 Markdown 预览可直接渲染；文字清晰、可版本管理）。
+
+### 总览：分层架构
+
+```mermaid
+flowchart TB
+  subgraph 用户入口
+    U[开发者]
+    CLI["CLI / REPL<br/>miku chat · one-shot · undo<br/>trace show · bench smoke"]
+    ENV["配置<br/>环境变量 / .env"]
+  end
+
+  subgraph 决策层
+    MP["ModelProvider<br/>OpenAI 兼容 · Mock"]
+    AA["AgentAction JSON<br/>tool_call · patch_proposal<br/>final_answer · ask_user · …"]
+  end
+
+  subgraph 运行时核心
+    RT["AgentRuntime 主循环"]
+    CTX["ContextBuilder<br/>任务 · 文件树 · project.md<br/>最近观察 · 字符预算"]
+    ST["AgentState<br/>observations · files_modified · …"]
+  end
+
+  subgraph 执行与安全
+    TR["ToolRegistry"]
+    TL["工具<br/>read/list/search<br/>run_shell · detect/run_tests"]
+    PM["Permissions<br/>PathPolicy 路径沙箱<br/>classify_command 风险分级"]
+    ED["Editing<br/>PatchEngine · backup · undo · diff"]
+    VF["Verification<br/>测试命令检测与执行"]
+  end
+
+  subgraph 可观测与状态
+    TC["TraceRecorder<br/>JSONL · 密钥脱敏"]
+    RP["render_trace 回放"]
+    MK[".miku/ 运行时目录<br/>sessions · patches · backups<br/>config.toml · project.md"]
+  end
+
+  U --> CLI
+  ENV --> CLI
+  CLI --> RT
+  RT --> CTX
+  CTX --> ST
+  RT --> MP
+  MP --> AA
+  AA --> RT
+  RT --> TR
+  TR --> TL
+  TL --> PM
+  RT --> ED
+  ED --> PM
+  RT --> VF
+  RT --> TC
+  TC --> MK
+  ED --> MK
+  RP --> TC
+  CLI --> RP
+```
+
+### 一次任务：运行时序
+
+```mermaid
+sequenceDiagram
+  participant 用户
+  participant CLI as CLI/REPL
+  participant RT as AgentRuntime
+  participant CTX as ContextBuilder
+  participant M as ModelProvider
+  participant REG as ToolRegistry/PatchEngine
+  participant TR as TraceRecorder
+
+  用户->>CLI: miku chat / one-shot 任务
+  CLI->>RT: run(task)
+  RT->>TR: session_started
+  loop 未完成且未超 max_steps
+    RT->>CTX: build(state)
+    CTX-->>RT: messages
+    RT->>M: complete(messages)
+    M-->>RT: 模型文本 content
+    Note over RT: 解析/容错为 AgentAction
+    alt tool_call
+      RT->>REG: execute(tool, arguments)
+      REG-->>RT: ToolResult
+      RT->>TR: tool_result
+    else patch_proposal
+      RT->>REG: apply_patches(patches)
+      REG-->>RT: ToolResult + 备份
+      RT->>TR: patch_applied
+    else final_answer
+      RT->>TR: final_report
+      RT-->>CLI: done=true
+    end
+  end
+  CLI-->>用户: Done/Stopped + 观察摘要
+```
+
+### 模块依赖（代码目录视角）
+
+```mermaid
+flowchart LR
+  subgraph cli_pkg["cli/"]
+    main["main / repl"]
+    factory["factory"]
+    display["display"]
+  end
+
+  subgraph runtime_pkg["runtime/"]
+    agent["agent"]
+    actions["actions / state / events"]
+  end
+
+  subgraph models_pkg["models/"]
+    openai["openai_compatible"]
+    mock["mock"]
+  end
+
+  subgraph side["能力模块"]
+    tools["tools/"]
+    perm["permissions/"]
+    editing["editing/"]
+    context["context/"]
+    memory["memory/"]
+    tracing["tracing/"]
+    verif["verification/"]
+    bench["benchmark/"]
+  end
+
+  main --> factory
+  main --> agent
+  main --> display
+  factory --> openai
+  factory --> mock
+  factory --> tools
+  agent --> actions
+  agent --> context
+  agent --> tools
+  agent --> editing
+  agent --> tracing
+  context --> memory
+  tools --> perm
+  editing --> perm
+  verif --> tools
+  bench --> factory
+  bench --> agent
+  main --> tracing
+```
+
+### 数据流要点
+
+| 流向 | 说明 |
+|------|------|
+| 用户 → CLI | 交互或单次任务；加载 `.env` |
+| Runtime → 模型 | 只要 **结构化决策**（JSON Action），不要模型直接 IO |
+| Runtime → 工具/补丁 | 一律经 Registry / PatchEngine；权限在 PathPolicy / risk |
+| Runtime → Trace | 关键节点落 JSONL（含脱敏） |
+| 补丁 → `.miku/backups` | 先备份再写；`undo` 按清单恢复 |
+
 ## 快速开始
+
 
 需要 Python `>=3.11` 与 [uv](https://github.com/astral-sh/uv)。
 
